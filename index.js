@@ -96,26 +96,34 @@ async function run() {
       const result = await userCollection.updateOne(query, updateDoc);
       res.send(result);
     })
-
-    // const user role
-    app.get('user/role/:email', verifyJWT, async (req, res) => {
+    // admin router
+    app.get('/user/admin/:email', verifyJWT, async (req, res) => {
       const email = req.params.email;
       if (email !== req.decoded.email) {
-        return res.status(403).send({ error: true, message: 'forbidden access' })
+        return res.send({ admin: false })
       }
+      const query = { email: email };
+      const user = await userCollection.findOne(query);
+      const result = { admin: user?.role === 'admin' }
+      res.send(result);
+    })
+
+
+    // const user role
+    app.get('/user/role/:email', async (req, res) => {
+      const email = req.params.email;
       const query = { email: email };
       const user = await userCollection.findOne(query);
       let result;
       if (user?.role === 'admin') {
-        result = { admin: user?.role === 'admin' }
+        result = 'admin'
       }
       else if (user?.role === 'instructor') {
-        result = { admin: user?.role === 'instructor' }
+        result = 'instructor'
       }
       else {
-        result = { admin: user?.role === 'instructor' }
+        result = 'user'
       }
-      console.log(result);
       res.send(result);
     })
 
