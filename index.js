@@ -46,7 +46,7 @@ async function run() {
 
     app.post('/jwt', (req, res) => {
       const user = req.body;
-      const token = jwt.sign(user, process.env.JWT_TOKEN, { expiresIn: '1h' })
+      const token = jwt.sign(user, process.env.JWT_TOKEN, { expiresIn: '12h' })
       res.send({ token });
     })
     // verify admin router
@@ -54,13 +54,13 @@ async function run() {
       const email = req.decoded.email;
       const query = { email: email }
       const user = await userCollection.findOne(query);
-      if(user?.role!=='admin'){
-        return res.status(403).send({error:true,message:'forbidden access'})
+      if (user?.role !== 'admin') {
+        return res.status(403).send({ error: true, message: 'forbidden access' })
       }
       next();
     }
     // user collection api
-    app.get('/users/:email', verifyJWT,verifyAdmin, async (req, res) => {
+    app.get('/users/:email', verifyJWT, verifyAdmin, async (req, res) => {
       const email = req.params.email;
       if (email !== req.decoded.email) {
         return res.status(403).send({ error: true, message: 'forbidden access' })
@@ -98,11 +98,26 @@ async function run() {
     })
 
     // const user role
-    // app.get('user/role/:email',async(req,res)=>{
-    //   const email = req.params.email;
-    //   const query = {email:email};
-    //   const user = await userCollection.find
-    // })
+    app.get('user/role/:email', verifyJWT, async (req, res) => {
+      const email = req.params.email;
+      if (email !== req.decoded.email) {
+        return res.status(403).send({ error: true, message: 'forbidden access' })
+      }
+      const query = { email: email };
+      const user = await userCollection.findOne(query);
+      let result;
+      if (user?.role === 'admin') {
+        result = { admin: user?.role === 'admin' }
+      }
+      else if (user?.role === 'instructor') {
+        result = { admin: user?.role === 'instructor' }
+      }
+      else {
+        result = { admin: user?.role === 'instructor' }
+      }
+      console.log(result);
+      res.send(result);
+    })
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
