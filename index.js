@@ -25,11 +25,30 @@ async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
     client.connect();
+    const userCollection = client.db('football-coach-den').collection('users')
+    const classCollection = client.db('football-coach-den').collection('classes')
+    const paymentCollection = client.db('football-coach-den').collection('payments')
 
-    app.post('/jwt',async(req,res)=>{
+    app.post('/jwt', (req, res) => {
       const user = req.body;
-      const token = jwt.sign(user,process.env.JWT_TOKEN,{expiresIn:'1h'})
-      res.send({token});
+      const token = jwt.sign(user, process.env.JWT_TOKEN, { expiresIn: '1h' })
+      res.send({ token });
+    })
+    // user collection api
+    app.get('/users',async(req,res)=>{
+      const result = await userCollection.find().toArray();
+      res.send(result);
+    })
+    app.patch('/user',async(req,res)=>{
+      const user = req.body.user;
+      const query = {email:user?.emil};
+      const options = {upsert:true}
+      console.log(query);
+      const updateDoc = {
+        $set:user
+      } 
+      const result = await userCollection.insertOne(query,updateDoc,options);
+      res.send(result);
     })
 
 
@@ -44,9 +63,9 @@ async function run() {
 run().catch(console.dir);
 
 
-app.get('/',(req,res)=>{
-    res.send('Welcome to football-coach-den-server');
+app.get('/', (req, res) => {
+  res.send('Welcome to football-coach-den-server');
 })
-app.listen(port,()=>{
-    console.log(`Successful Connect with ${port}`)
+app.listen(port, () => {
+  console.log(`Successful Connect with ${port}`)
 });
