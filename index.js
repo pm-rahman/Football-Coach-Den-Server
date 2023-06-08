@@ -9,6 +9,21 @@ const port = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
+const verifyJWT = (req, res, next) => {
+  const authorization = req.headers.authorization;
+  if (!authorization) {
+    return res.status(401).send({ error: true, message: 'unauthorized access' })
+  }
+  const token = authorization.split(' ')[1]
+  jwt.verify(token, process.env.JWT_TOKEN, (error, decoded) => {
+    if (error) {
+      return res.status(401).send({ error: true, message: 'unauthorized access' })
+    }
+    req.decoded = decoded;
+    next()
+  })
+}
+
 const { MongoClient, ServerApiVersion } = require('mongodb');
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.maiu4ju.mongodb.net/?retryWrites=true&w=majority`;
 
@@ -35,19 +50,31 @@ async function run() {
       res.send({ token });
     })
     // user collection api
-    app.get('/users',async(req,res)=>{
+    app.get('/users/:email', verifyJWT, async (req, res) => {
+      const email = req.params.email;
+      if (email !== req.decoded.email) {
+        return res.status(403).send({ error: true, message: 'forbidden access' })
+      }
       const result = await userCollection.find().toArray();
       res.send(result);
     })
-    app.patch('/user',async(req,res)=>{
-      const user = req.body.user;
-      const query = {email:user?.emil};
-      const options = {upsert:true}
-      console.log(query);
+    app.put('/user', async (req, res) => {
+      const user = req.body;
+      const email = user.email;
+      const query = { email: email };
+      const options = { upsert: true }
+      const updateDoc = {$set: user}
+      const result = await userCollection.updateOne(query, updateDoc, options);
+      res.send(result);
+    })
+    app.patch('/user/:email',async(req,res)=>{
+      const email = req.params.email;
+      const query = {email:email}
       const updateDoc = {
-        $set:user
-      } 
-      const result = await userCollection.insertOne(query,updateDoc,options);
+        role:'instructor'
+      }
+      const result = await userCollection.insertOne(query,updateDoc);
+      console.log(result);
       res.send(result);
     })
 
