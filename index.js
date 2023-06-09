@@ -152,13 +152,23 @@ async function run() {
       const result = await classCollection.find().toArray()
       res.send(result);
     })
-    app.post('/class/:email',async(req,res)=>{
+    app.post('/class/:email',verifyJWT,verifyInstructor,async(req,res)=>{
       const email = req.params.email;
+      if (email !== req.decoded.email) {
+        return res.status(403).send({ error: true, message: 'forbidden access' })
+      }
       const newClass = req.body;
-      // console.log(newClass);
       const result = await classCollection.insertOne(newClass);
       res.send(result);
-      // const 
+    })
+    app.get('/instructor/class/:email',verifyJWT,verifyInstructor,async(req,res)=>{
+      const email = req.params.email;
+      if (email !== req.decoded.email) {
+        return res.status(403).send({ error: true, message: 'forbidden access' })
+      }
+      const query = {instructorEmail:email};
+      const result = await classCollection.find(query).toArray();
+      res.send(result);
     })
 
     // Send a ping to confirm a successful connection
