@@ -89,20 +89,23 @@ async function run() {
       const result = await userCollection.updateOne(query, updateDoc, options);
       res.send(result);
     })
-    app.patch('/user/promote/:id', verifyJWT, verifyAdmin, async (req, res) => {
+    app.patch('/user/promote/instructor/:id', verifyJWT, verifyAdmin, async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) }
-      const user = await userCollection.findOne(query);
-      let role;
-      if (user?.role === 'instructor') {
-        role = 'admin';
-      }
-      else {
-        role = 'instructor';
-      }
       const updateDoc = {
         $set: {
-          role: role,
+          role: 'instructor',
+        }
+      }
+      const result = await userCollection.updateOne(query, updateDoc);
+      res.send(result);
+    })
+    app.patch('/user/promote/admin/:id', verifyJWT, verifyAdmin, async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) }
+      const updateDoc = {
+        $set: {
+          role: 'admin',
         }
       }
       const result = await userCollection.updateOne(query, updateDoc);
@@ -118,7 +121,11 @@ async function run() {
       const result = { admin: user?.role === 'admin' }
       res.send(result);
     })
-
+    app.get('/instructor', async (req, res) => {
+      const query = { role: 'instructor' }
+      const result = await userCollection.find(query).toArray();
+      res.send(result);
+    })
     app.get('/user/instructor/:email', verifyJWT, async (req, res) => {
       const email = req.params.email;
       if (email !== req.decoded.email) {
@@ -175,15 +182,15 @@ async function run() {
         return res.status(403).send({ error: true, message: 'forbidden access' })
       }
       const query = { _id: new ObjectId(id) };
-      console.log(updateClass,email);
       const updateDoc = {
         $set: {
-              className:updateClass.className,seats:updateClass.seats,price:updateClass.price
+          className: updateClass.className, seats: updateClass.seats, price: updateClass.price
         }
       }
-      const result = await classCollection.updateOne(query,updateDoc);
+      const result = await classCollection.updateOne(query, updateDoc);
       res.send(result);
     })
+
     app.get('/instructor/class/:email', verifyJWT, verifyInstructor, async (req, res) => {
       const email = req.params.email;
       if (email !== req.decoded.email) {
@@ -193,6 +200,7 @@ async function run() {
       const result = await classCollection.find(query).toArray();
       res.send(result);
     })
+
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
