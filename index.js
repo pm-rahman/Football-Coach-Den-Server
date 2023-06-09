@@ -148,11 +148,17 @@ async function run() {
     })
 
     // classCollection apis
-    app.get('/classes',async(req,res)=>{
+    app.get('/classes', async (req, res) => {
       const result = await classCollection.find().toArray()
       res.send(result);
     })
-    app.post('/class/:email',verifyJWT,verifyInstructor,async(req,res)=>{
+    app.get('/class/:id', async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) }
+      const result = await classCollection.findOne(query);
+      res.send(result);
+    })
+    app.post('/class/:email', verifyJWT, verifyInstructor, async (req, res) => {
       const email = req.params.email;
       if (email !== req.decoded.email) {
         return res.status(403).send({ error: true, message: 'forbidden access' })
@@ -161,12 +167,29 @@ async function run() {
       const result = await classCollection.insertOne(newClass);
       res.send(result);
     })
-    app.get('/instructor/class/:email',verifyJWT,verifyInstructor,async(req,res)=>{
+    app.patch('/editClass/:id', verifyJWT, verifyInstructor, async (req, res) => {
+      const id = req.params.id;
+      const updateClass = req.body;
+      const email = updateClass.instructorEmail;
+      if (email !== req.decoded.email) {
+        return res.status(403).send({ error: true, message: 'forbidden access' })
+      }
+      const query = { _id: new ObjectId(id) };
+      console.log(updateClass,email);
+      const updateDoc = {
+        $set: {
+              className:updateClass.className,seats:updateClass.seats,price:updateClass.price
+        }
+      }
+      const result = await classCollection.updateOne(query,updateDoc);
+      res.send(result);
+    })
+    app.get('/instructor/class/:email', verifyJWT, verifyInstructor, async (req, res) => {
       const email = req.params.email;
       if (email !== req.decoded.email) {
         return res.status(403).send({ error: true, message: 'forbidden access' })
       }
-      const query = {instructorEmail:email};
+      const query = { instructorEmail: email };
       const result = await classCollection.find(query).toArray();
       res.send(result);
     })
