@@ -71,6 +71,7 @@ async function run() {
     }
 
     // user collection api
+
     app.get('/users/:email', verifyJWT, verifyAdmin, async (req, res) => {
       const email = req.params.email;
       if (email !== req.decoded.email) {
@@ -107,7 +108,6 @@ async function run() {
       const result = await userCollection.updateOne(query, updateDoc);
       res.send(result);
     })
-    // admin router
     app.get('/user/admin/:email', verifyJWT, async (req, res) => {
       const email = req.params.email;
       if (email !== req.decoded.email) {
@@ -119,7 +119,6 @@ async function run() {
       res.send(result);
     })
 
-    // instructor router
     app.get('/user/instructor/:email', verifyJWT, async (req, res) => {
       const email = req.params.email;
       if (email !== req.decoded.email) {
@@ -131,7 +130,6 @@ async function run() {
       res.send(result);
     })
 
-    // const user role
     app.get('/user/role/:email', async (req, res) => {
       const email = req.params.email;
       const query = { email: email };
@@ -147,6 +145,20 @@ async function run() {
         result = 'user'
       }
       res.send(result);
+    })
+
+    // classCollection apis
+    app.get('/classes',async(req,res)=>{
+      const result = await classCollection.find().toArray()
+      res.send(result);
+    })
+    app.post('/class/:email',async(req,res)=>{
+      const email = req.params.email;
+      const newClass = req.body;
+      // console.log(newClass);
+      const result = await classCollection.insertOne(newClass);
+      res.send(result);
+      // const 
     })
 
     // Send a ping to confirm a successful connection
