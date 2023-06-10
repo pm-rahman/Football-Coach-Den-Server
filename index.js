@@ -40,9 +40,10 @@ async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
     client.connect();
-    const userCollection = client.db('football-coach-den').collection('users')
-    const classCollection = client.db('football-coach-den').collection('classes')
-    const paymentCollection = client.db('football-coach-den').collection('payments')
+    // db collections
+    const userCollection = client.db('football-coach-den').collection('users');
+    const classCollection = client.db('football-coach-den').collection('classes');
+    const paymentCollection = client.db('football-coach-den').collection('payments');
 
     app.post('/jwt', (req, res) => {
       const user = req.body;
@@ -156,8 +157,18 @@ async function run() {
     })
 
     // classCollection apis
-    app.get('/classes', async (req, res) => {
-      const result = await classCollection.find().toArray()
+    app.get('/classes/:email', verifyJWT, verifyAdmin, async (req, res) => {
+      // TODO: verify admin email
+      const email = req.params.email;
+      if (email !== req.decoded.email) {
+        return res.status(403).send({ error: true, message: 'Forbidden Access' })
+      }
+      const result = await classCollection.find().toArray();
+      res.send(result);
+    })
+    app.get('/approvedClasses', async (req, res) => {
+      const query = { status: 'approved' }
+      const result = await classCollection.find(query).toArray();
       res.send(result);
     })
     app.get('/class/:id', async (req, res) => {
@@ -191,6 +202,18 @@ async function run() {
       const result = await classCollection.updateOne(query, updateDoc);
       res.send(result);
     })
+    app.patch('/selectedByUser/:id', async (req, res) => {
+      const id = req.params.id;
+      const email = req.body.studentEmail;
+      const query = { _id: new ObjectId(id) };
+      const updateDoc={
+        $push: {
+          selectedEmail:email
+        }
+      }
+      const result = await classCollection.updateOne(query,updateDoc);
+      res.send(result);
+    })
 
     app.get('/instructor/class/:email', verifyJWT, verifyInstructor, async (req, res) => {
       const email = req.params.email;
@@ -202,26 +225,26 @@ async function run() {
       res.send(result);
     })
 
-    app.patch('/updateStatus/:id',verifyJWT,verifyAdmin, async (req, res) => {
+    app.patch('/updateStatus/:id', verifyJWT, verifyAdmin, async (req, res) => {
       const id = req.params.id;
       // TODO: admin email verify remaining
       const query = { _id: new ObjectId(id) }
       const status = req.body.status;
       let updateDoc;
       if (status === 'deny') {
-        updateDoc ={ $set:{status:status}}
+        updateDoc = { $set: { status: status } }
       }
-      else {updateDoc ={$set:{status:status}}}
-      const result = await classCollection.updateOne(query,updateDoc);
+      else { updateDoc = { $set: { status: status } } }
+      const result = await classCollection.updateOne(query, updateDoc);
       res.send(result);
     })
-    app.patch('/updateFeedback/:id',verifyJWT,verifyAdmin, async (req, res) => {
+    app.patch('/updateFeedback/:id', verifyJWT, verifyAdmin, async (req, res) => {
       const id = req.params.id;
       // TODO: admin email verify remaining
       const feedback = req.body.feedback;
       const query = { _id: new ObjectId(id) }
       const updateDoc = {
-        $set: {feedback: feedback}
+        $set: { feedback: feedback }
       }
       const result = await classCollection.updateOne(query, updateDoc);
       res.send(result);
