@@ -102,6 +102,7 @@ async function run() {
     })
     app.patch('/user/promote/admin/:id', verifyJWT, verifyAdmin, async (req, res) => {
       const id = req.params.id;
+      // TODO: admin email verify remaining
       const query = { _id: new ObjectId(id) }
       const updateDoc = {
         $set: {
@@ -121,7 +122,7 @@ async function run() {
       const result = { admin: user?.role === 'admin' }
       res.send(result);
     })
-    app.get('/instructor', async (req, res) => {
+    app.get('/instructors', async (req, res) => {
       const query = { role: 'instructor' }
       const result = await userCollection.find(query).toArray();
       res.send(result);
@@ -198,6 +199,31 @@ async function run() {
       }
       const query = { instructorEmail: email };
       const result = await classCollection.find(query).toArray();
+      res.send(result);
+    })
+
+    app.patch('/updateStatus/:id',verifyJWT,verifyAdmin, async (req, res) => {
+      const id = req.params.id;
+      // TODO: admin email verify remaining
+      const query = { _id: new ObjectId(id) }
+      const status = req.body.status;
+      let updateDoc;
+      if (status === 'deny') {
+        updateDoc ={ $set:{status:status}}
+      }
+      else {updateDoc ={$set:{status:status}}}
+      const result = await classCollection.updateOne(query,updateDoc);
+      res.send(result);
+    })
+    app.patch('/updateFeedback/:id',verifyJWT,verifyAdmin, async (req, res) => {
+      const id = req.params.id;
+      // TODO: admin email verify remaining
+      const feedback = req.body.feedback;
+      const query = { _id: new ObjectId(id) }
+      const updateDoc = {
+        $set: {feedback: feedback}
+      }
+      const result = await classCollection.updateOne(query, updateDoc);
       res.send(result);
     })
 
