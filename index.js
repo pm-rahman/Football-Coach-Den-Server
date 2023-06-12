@@ -303,8 +303,12 @@ async function run() {
       const result = await selectCollection.updateOne(query, updateDoc, options);
       res.send(result);
     })
-    app.delete('/cancelByUser/:id', async (req, res) => {
+    app.delete('/cancelByUser/:id',verifyJWT, async (req, res) => {
       const id = req.params.id;
+      const email = req.query.email;
+      if(email!==req.decoded.email){
+        return res.status(403).send({error:true,message:'Forbidden access'})
+      }
       const query = { _id: new ObjectId(id) }
       const result = await selectCollection.deleteOne(query);
       res.send(result);
@@ -352,7 +356,6 @@ async function run() {
       const query = { $and: [{ id: paymentInfo.id }, { email: paymentInfo.email }] }
       const options = { upsert: true }
       const updateDoc = {$set: paymentInfo};
-      // console.log(paymentInfo);
       const result = await paymentCollection.updateOne(query,updateDoc,options);
       res.send(result)
     })
