@@ -1,12 +1,19 @@
 const express = require('express');
+const app = express();
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
-const app = express();
 require('dotenv').config();
+const stripe = require('stripe')(process.env.STRIPE_SK);
 const port = process.env.PORT || 5000;
 
 // middleware
-app.use(cors());
+const corsOptions = {
+  origin: '*',
+  credentials: true,
+  optionSuccessStatus: 200,
+}
+app.use(cors(corsOptions))
+
 app.use(express.json());
 
 const verifyJWT = (req, res, next) => {
@@ -43,6 +50,7 @@ async function run() {
     // db collections
     const userCollection = client.db('football-coach-den').collection('users');
     const classCollection = client.db('football-coach-den').collection('classes');
+    const selectCollection = client.db('football-coach-den').collection('selects');
     const paymentCollection = client.db('football-coach-den').collection('payments');
 
     app.post('/jwt', (req, res) => {
@@ -81,38 +89,6 @@ async function run() {
       const result = await userCollection.find().toArray();
       res.send(result);
     })
-    app.put('/user', async (req, res) => {
-      const user = req.body;
-      const email = user.email;
-      const query = { email: email };
-      const options = { upsert: true }
-      const updateDoc = { $set: user }
-      const result = await userCollection.updateOne(query, updateDoc, options);
-      res.send(result);
-    })
-    app.patch('/user/promote/instructor/:id', verifyJWT, verifyAdmin, async (req, res) => {
-      const id = req.params.id;
-      const query = { _id: new ObjectId(id) }
-      const updateDoc = {
-        $set: {
-          role: 'instructor',
-        }
-      }
-      const result = await userCollection.updateOne(query, updateDoc);
-      res.send(result);
-    })
-    app.patch('/user/promote/admin/:id', verifyJWT, verifyAdmin, async (req, res) => {
-      const id = req.params.id;
-      // TODO: admin email verify remaining
-      const query = { _id: new ObjectId(id) }
-      const updateDoc = {
-        $set: {
-          role: 'admin',
-        }
-      }
-      const result = await userCollection.updateOne(query, updateDoc);
-      res.send(result);
-    })
     app.get('/user/admin/:email', verifyJWT, async (req, res) => {
       const email = req.params.email;
       if (email !== req.decoded.email) {
@@ -138,27 +114,71 @@ async function run() {
       const result = { instructor: user?.role === 'instructor' }
       res.send(result);
     })
-
     app.get('/user/role/:email', async (req, res) => {
       const email = req.params.email;
       const query = { email: email };
       const user = await userCollection.findOne(query);
       let result;
-      if (user?.role === 'admin') {
-        result = 'admin'
-      }
-      else if (user?.role === 'instructor') {
-        result = 'instructor'
-      }
-      else {
-        result = 'user'
-      }
+      if (user?.role === 'admin') {result = 'admin'}
+      else if (user?.role === 'instructor') {result = 'instructor'}
+      else {result = 'user'}
       res.send(result);
     })
 
+    app.get('/popularInstructor',async(req,res)=>{
+      const query = {role:'instructor'}
+      const sort = {student:-1};
+      const result = await userCollection.find(query).sort(sort).limit(6).toArray();
+      res.send(result);
+    })
+
+    app.put('/user', async (req, res) => {
+      const user = req.body;
+      const email = user.email;
+      const query = { email: email };
+      const options = { upsert: true }
+      const updateDoc = { $set: user }
+      const result = await userCollection.updateOne(query, updateDoc, options);
+      res.send(result);
+    })
+    app.patch('/user/promote/instructor/:id', verifyJWT, verifyAdmin, async (req, res) => {
+      const id = req.params.id;
+      const email = req.body.email;
+      if(email!==req.decoded.email){
+        return res.status(403).send({error:true,message:'Forbidden Access'})
+      }
+      const query = { _id: new ObjectId(id) }
+      const updateDoc = {
+        $set: {role: 'instructor'}
+      }
+      const result = await userCollection.updateOne(query, updateDoc);
+      res.send(result);
+    })
+    app.patch('/user/promote/admin/:id', verifyJWT, verifyAdmin, async (req, res) => {
+      const id = req.params.id;
+      const email = req.body.email;
+      if(email!==req.decoded.email){
+        return res.status(403).send({error:true,message:'Forbidden Access'})
+      }
+      const query = { _id: new ObjectId(id) }
+      const updateDoc = {$set: {role: 'admin'}}
+      const result = await userCollection.updateOne(query, updateDoc);
+      res.send(result);
+    })
+
+    app.patch('/studentAdd',verifyJWT,async(req,res)=>{
+      const email = req.body.email;
+      const query = {email:email}
+      const updateDoc={
+        $inc:{student:1}
+      }
+      const result = await userCollection.updateOne(query,updateDoc);
+      res.send(result);
+    })
+
+
     // classCollection apis
     app.get('/classes/:email', verifyJWT, verifyAdmin, async (req, res) => {
-      // TODO: verify admin email
       const email = req.params.email;
       if (email !== req.decoded.email) {
         return res.status(403).send({ error: true, message: 'Forbidden Access' })
@@ -177,6 +197,23 @@ async function run() {
       const result = await classCollection.findOne(query);
       res.send(result);
     })
+    app.get('/instructor/class/:email', verifyJWT, verifyInstructor, async (req, res) => {
+      const email = req.params.email;
+      if (email !== req.decoded.email) {
+        return res.status(403).send({ error: true, message: 'forbidden access' })
+      }
+      const query = { instructorEmail: email };
+      const result = await classCollection.find(query).toArray();
+      res.send(result);
+    })
+
+    app.get('/popularClasses',async(req,res)=>{
+      const query = { status: 'approved' }
+      const sort = {enrolled:-1};
+      const result = await classCollection.find(query).sort(sort).limit(6).toArray();
+      res.send(result);
+    })
+
     app.post('/class/:email', verifyJWT, verifyInstructor, async (req, res) => {
       const email = req.params.email;
       if (email !== req.decoded.email) {
@@ -195,39 +232,17 @@ async function run() {
       }
       const query = { _id: new ObjectId(id) };
       const updateDoc = {
-        $set: {
-          className: updateClass.className, seats: updateClass.seats, price: updateClass.price
-        }
+        $set: {className: updateClass.className, seats: updateClass.seats, price: updateClass.price}
       }
       const result = await classCollection.updateOne(query, updateDoc);
       res.send(result);
     })
-    app.patch('/selectedByUser/:id', async (req, res) => {
+    app.patch('/updateClassStatus/:id', verifyJWT, verifyAdmin, async (req, res) => {
       const id = req.params.id;
-      const email = req.body.studentEmail;
-      const query = { _id: new ObjectId(id) };
-      const updateDoc={
-        $push: {
-          selectedEmail:email
-        }
+      const email = req.body.email;
+      if(email!==req.decoded.email){
+        return res.status(403).send({error:true,message:'Forbidden Access'})
       }
-      const result = await classCollection.updateOne(query,updateDoc);
-      res.send(result);
-    })
-
-    app.get('/instructor/class/:email', verifyJWT, verifyInstructor, async (req, res) => {
-      const email = req.params.email;
-      if (email !== req.decoded.email) {
-        return res.status(403).send({ error: true, message: 'forbidden access' })
-      }
-      const query = { instructorEmail: email };
-      const result = await classCollection.find(query).toArray();
-      res.send(result);
-    })
-
-    app.patch('/updateStatus/:id', verifyJWT, verifyAdmin, async (req, res) => {
-      const id = req.params.id;
-      // TODO: admin email verify remaining
       const query = { _id: new ObjectId(id) }
       const status = req.body.status;
       let updateDoc;
@@ -240,15 +255,109 @@ async function run() {
     })
     app.patch('/updateFeedback/:id', verifyJWT, verifyAdmin, async (req, res) => {
       const id = req.params.id;
-      // TODO: admin email verify remaining
-      const feedback = req.body.feedback;
-      const query = { _id: new ObjectId(id) }
-      const updateDoc = {
-        $set: { feedback: feedback }
+      const email = req.body.email;
+      if(email!==req.decoded.email){
+        return res.status(403).send({error:true,message:'Forbidden Access'})
       }
+      const feedback = req.body.data.feedback;
+      const query = { _id: new ObjectId(id) }
+      const updateDoc = {$set: { feedback: feedback }}
       const result = await classCollection.updateOne(query, updateDoc);
       res.send(result);
     })
+
+    app.patch('/updateEnrolSeats/:id',verifyJWT,async(req,res)=>{
+      const email = req.body.email;
+      if(email!==req.decoded.email){
+        return res.status(403).send({error:true,message:'Forbidden Access'})
+      }
+      const id = req.params.id;
+      const query = {_id:new ObjectId(id)}
+      const updateDoc={
+        $inc:{seats:-1,enrolled:1}
+      }
+      const result = await classCollection.updateOne(query,updateDoc);
+      res.send(result);
+    })
+
+    //selectedCollection apis
+    app.get('/selectedByUser/:email', verifyJWT, async (req, res) => {
+      const email = req.params.email;
+      if (email !== req.decoded.email) {
+        return res.status(403).send({ error: true, message: 'Forbidden Access' })
+      }
+      const query = { email: email }
+      const result = await selectCollection.find(query).toArray();
+      res.send(result);
+    })
+
+    app.put('/selectedByUser/:email', verifyJWT, async (req, res) => {
+      const email = req.params.email;
+      if (email !== req.decoded.email) {
+        return res.status(403).send({ error: true, message: 'Forbidden Access' })
+      }
+      const classInfo = req.body;
+      const query = { $and: [{ id: classInfo.id }, { email: email }] }
+      const options = { upsert: true }
+      const updateDoc = {$set: classInfo};
+      const result = await selectCollection.updateOne(query, updateDoc, options);
+      res.send(result);
+    })
+    app.delete('/cancelByUser/:id', async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) }
+      const result = await selectCollection.deleteOne(query);
+      res.send(result);
+    })
+    
+    // payment apis
+    app.delete('/afterPayment/:id',verifyJWT, async (req, res) => {
+      const id = req.params.id;
+      const email = req.query.email;
+      if (email !== req.decoded.email) {
+        return res.status(403).send({ error: true, message: 'Forbidden Access' })
+      }
+      const query = { $and: [{ id:id }, { email:email }] }
+      // console.log(id,email);
+      const result = await selectCollection.deleteOne(query);
+      res.send(result)
+    })
+
+    // create a payment intent
+    app.get('/paymentHistory/:email',verifyJWT,async(req,res)=>{
+      const email = req.params.email;
+      if(email!==req.decoded.email){
+        res.status(403).send({error:true,message:'Forbidden Access'})
+      }
+      const query = {email:email}
+      const options={sort:{date:-1}}
+      const result = await paymentCollection.find(query,options).toArray();
+      res.send(result);
+    })
+    app.post('/createPaymentIntent',verifyJWT, async (req, res) => {
+      const { price } = req.body;
+      // console.log(price);
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: price * 100,
+        currency: "usd",
+        payment_method_types: ["card"]
+      })
+      res.send({
+        clientSecret: paymentIntent.client_secret,
+      });
+    })
+    // payment collection
+    app.put('/payment',verifyJWT,async(req,res)=>{
+      const paymentInfo = req.body.paymentInfo;
+      const query = { $and: [{ id: paymentInfo.id }, { email: paymentInfo.email }] }
+      const options = { upsert: true }
+      const updateDoc = {$set: paymentInfo};
+      // console.log(paymentInfo);
+      const result = await paymentCollection.updateOne(query,updateDoc,options);
+      res.send(result)
+    })
+
+    
 
 
     // Send a ping to confirm a successful connection
